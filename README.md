@@ -262,53 +262,53 @@ backend\bin\ffmpeg.exe -i "目标文件.mp4"   # 看 Stream #0:0 是否为 h264
 6. 增强网络健壮性（重试/超时）+ 友好错误提示。
 7. 修复"只有声音没画面"（编码兼容性优先 H.264）。
 8. **AI 视频总结上线**：字幕抓取解析 + DeepSeek 结构化总结/带时间戳大纲/思维导图/AI 问答/翻译；前端视频卡片内联面板，支持导出 Markdown / 打印 PDF。当前为"仅字幕"方案，无字幕视频暂不支持。
-## 2026-06-21 Troubleshooting And Implementation Update
+## 2026-06-21 问题排查与实现更新
 
-### 1. Bilibili Subtitle And Download Handling
+### 1. B 站字幕与下载处理
 
-- `backend/cookies.txt` uses Netscape-format cookies exported from a logged-in browser session. Keep Bilibili-related cookies only when possible.
-- AI summary now follows a subtitle-first strategy:
-  - Try yt-dlp subtitles and automatic captions.
-  - For Bilibili, fall back to the player subtitle API:
-    - `x/web-interface/view?bvid=...` to get `aid` and `cid`.
-    - `x/player/wbi/v2?aid=...&cid=...` to get subtitle metadata.
-    - Download `subtitle_url` JSON and convert Bilibili subtitle bodies into internal transcript segments.
-- Download quality selection now has a fallback for cases where a requested quality has no matching stream. Example: if `480p` has no `height<=480` stream, the format selector can fall back to the lowest available video stream instead of failing with `Requested format is not available`.
+- `backend/cookies.txt` 使用从已登录浏览器导出的 Netscape 格式 Cookie，建议尽量只保留 B 站相关条目。
+- AI 总结采用**字幕优先**策略：
+  - 先尝试 yt-dlp 字幕与自动字幕。
+  - 对 B 站，回退到播放器字幕 API：
+    - `x/web-interface/view?bvid=...` 获取 `aid` 与 `cid`。
+    - `x/player/wbi/v2?aid=...&cid=...` 获取字幕元数据。
+    - 下载 `subtitle_url` 的 JSON，并将 B 站字幕正文转换为内部 transcript 片段。
+- 下载清晰度选择增加回退：当请求的清晰度没有匹配流时不再直接失败。例如 `480p` 若无 `height<=480` 的流，格式选择器会回退到当前可用的最低清晰度视频流，而不是报 `Requested format is not available`。
 
-### 2. Whisper ASR Fallback
+### 2. Whisper ASR 回退
 
-- Summary uses subtitles first. Whisper is only needed when no usable subtitles are found and `ENABLE_ASR=1`.
-- `faster-whisper` loads the configured model from `WHISPER_MODEL` (`small` by default).
-- Hugging Face official access can time out in this environment. `config.py` defaults `HF_ENDPOINT` to `https://hf-mirror.com`, which has been verified reachable.
-- The `small` Whisper model has been loaded once successfully, which caches it locally for later ASR use.
-- Operational switch:
-  - `ENABLE_ASR=1`: no-subtitle videos can fall back to local Whisper transcription.
-  - `ENABLE_ASR=0`: no-subtitle videos fail fast with a clear no-subtitle message.
+- 总结仍优先使用字幕；仅在没有可用字幕且 `ENABLE_ASR=1` 时才启用 Whisper。
+- `faster-whisper` 按 `WHISPER_MODEL` 加载模型（默认 `small`）。
+- 本环境访问 Hugging Face 官方源可能超时，`config.py` 默认 `HF_ENDPOINT` 为 `https://hf-mirror.com`，已验证可访问。
+- `small` 模型已成功加载过一次，本地已缓存，后续 ASR 可直接复用。
+- 运行开关：
+  - `ENABLE_ASR=1`：无字幕视频可回退到本地 Whisper 转写。
+  - `ENABLE_ASR=0`：无字幕视频快速失败，并给出明确的无字幕提示。
 
-### 3. Douyin Short-Link Parsing
+### 3. 抖音短链解析
 
-- Douyin share short links such as `https://v.douyin.com/xujb7b1B7IQ` are valid inputs.
-- The short link redirects to a real video URL such as `https://www.douyin.com/video/7653463628881346661?...`.
-- The failure `Fresh cookies (not necessarily logged in) are needed` was not caused by missing Douyin login cookies in the verified case.
-- Root cause: `_base_opts()` previously sent Bilibili-only headers (`Referer` and `Origin`) to every platform. Douyin parsing can fail when it receives those Bilibili headers.
-- Fix: `_base_opts(url)` is now URL-aware:
-  - Bilibili URLs keep `Referer: https://www.bilibili.com/` and `Origin: https://www.bilibili.com`.
-  - Douyin and other platforms use generic browser headers only.
-- All call sites that create yt-dlp options should pass the current URL into `_base_opts(url)`, including parse, download, subtitle fetching, and ASR audio download paths.
-- Verified real parse result for `https://v.douyin.com/xujb7b1B7IQ`:
-  - `extractor`: `Douyin`
-  - `id`: `7653463628881346661`
-  - `duration`: `1:53`
-  - `/api/parse`: HTTP 200
+- 抖音分享短链（如 `https://v.douyin.com/xujb7b1B7IQ`）可作为有效输入。
+- 短链会重定向到真实视频地址，如 `https://www.douyin.com/video/7653463628881346661?...`。
+- 报错 `Fresh cookies (not necessarily logged in) are needed` 在已验证案例中**并非**因缺少抖音登录 Cookie。
+- 根因：`_base_opts()` 此前对所有平台都发送 B 站专用请求头（`Referer` 与 `Origin`），抖音收到 B 站头后会解析失败。
+- 修复：`_base_opts(url)` 现按 URL 区分：
+  - B 站 URL 保留 `Referer: https://www.bilibili.com/` 与 `Origin: https://www.bilibili.com`。
+  - 抖音及其他平台仅使用通用浏览器请求头。
+- 所有创建 yt-dlp 选项的调用点都应把当前 URL 传入 `_base_opts(url)`，包括解析、下载、字幕抓取与 ASR 音频下载路径。
+- 已验证 `https://v.douyin.com/xujb7b1B7IQ` 的真实解析结果：
+  - `extractor`：`Douyin`
+  - `id`：`7653463628881346661`
+  - `duration`：`1:53`
+  - `/api/parse`：HTTP 200
 
-### 4. Verification Commands
+### 4. 验证命令
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m unittest tests.test_downloader_errors tests.test_downloader_formats tests.test_ai_summary
 ```
 
-Real-network spot checks used during debugging:
+调试过程中使用的真实网络抽查：
 
 ```powershell
 curl.exe -I --connect-timeout 10 https://huggingface.co
@@ -316,36 +316,36 @@ curl.exe -I --connect-timeout 10 https://hf-mirror.com
 .\.venv\Scripts\python.exe -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8'); print('ok')"
 ```
 
-## 2026-06-21 AI Reading And Export Improvements
+## 2026-06-21 AI 阅读与导出增强
 
-### 1. Markdown Reading
+### 1. Markdown 阅读
 
-- The AI summary panel now has a `Markdown` tab.
-- Frontend file: `frontend/src/components/AiSummary.jsx`.
-- Styling uses Tailwind Typography via CDN (`https://cdn.tailwindcss.com?plugins=typography`) plus local `.summary-prose` tweaks in `frontend/src/index.css`.
-- The Markdown tab is built from the existing structured summary fields, so it does not change the backend LLM response schema.
+- AI 总结面板新增 `Markdown` 标签页。
+- 前端文件：`frontend/src/components/AiSummary.jsx`。
+- 样式通过 CDN 引入 Tailwind Typography（`https://cdn.tailwindcss.com?plugins=typography`），并在 `frontend/src/index.css` 中用本地 `.summary-prose` 做微调。
+- Markdown 内容由现有结构化总结字段拼装，**不改动**后端 LLM 响应结构。
 
-### 2. Mind Map Fullscreen And PNG Export
+### 2. 思维导图全屏与 PNG 导出
 
-- The mind map tab now has:
-  - `Fullscreen`: uses the browser Fullscreen API and calls `markmap.fit()` after layout changes.
-  - `Download image`: serializes the rendered SVG, draws it to a 2x canvas, and downloads a PNG.
-- No new frontend dependency is required.
-- Main implementation: `frontend/src/components/AiSummary.jsx`.
+- 思维导图标签页新增：
+  - `全屏`：使用浏览器 Fullscreen API，布局变化后调用 `markmap.fit()`。
+  - `下载图片`：序列化已渲染的 SVG，绘制到 2 倍 canvas 后导出 PNG。
+- 无需新增前端依赖。
+- 主要实现：`frontend/src/components/AiSummary.jsx`。
 
-### 3. Transcript / Subtitle SRT Download
+### 3. 字幕 SRT 下载
 
-- The AI summary toolbar now has a `字幕` download button.
-- Because transcript segments are intentionally hidden from the polling response, SRT download is implemented by the backend:
+- AI 总结工具栏新增 `字幕` 下载按钮。
+- 因轮询响应刻意不返回原始字幕片段，SRT 下载由后端实现：
   - `GET /api/ai/transcript/{task_id}.srt`
-  - Returns the completed task transcript as an SRT attachment.
-- Backend helper:
-  - `segments_to_srt(segments)` in `backend/app/ai.py`.
-  - `AISummaryManager.get_transcript_download(task_id)` reads completed cached segments only.
-- Frontend helper:
-  - `transcriptDownloadUrl(taskId)` in `frontend/src/api.js`.
+  - 以 SRT 附件形式返回已完成任务的字幕。
+- 后端辅助：
+  - `backend/app/ai.py` 中的 `segments_to_srt(segments)`。
+  - `AISummaryManager.get_transcript_download(task_id)` 仅读取已完成任务的缓存片段。
+- 前端辅助：
+  - `frontend/src/api.js` 中的 `transcriptDownloadUrl(taskId)`。
 
-### 4. Verification
+### 4. 验证
 
 ```powershell
 cd backend
