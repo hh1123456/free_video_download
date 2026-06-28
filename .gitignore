@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# App data
+downloads/
+*.log
+
+# Secrets（AI 密钥等，切勿提交）
+.env
+backend/.env
+backend/cookies.txt
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db

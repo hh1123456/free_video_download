@@ -1,0 +1,10 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+# yt-dlp 需保持较新版本（各平台风控/接口经常变动），建议定期 pip install -U yt-dlp
+yt-dlp>=2026.6.9
+imageio-ffmpeg==0.5.1
+python-multipart==0.0.20
+# AI 视频总结：DeepSeek 走 OpenAI 兼容协议，复用官方 openai SDK
+openai>=1.40.0
+# 语音转写 ASR：无字幕视频的兜底（首次使用会自动下载模型权重）
+faster-whisper>=1.0.0

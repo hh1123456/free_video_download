@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>万能视频下载器 | 解析、下载、AI总结</title>
+    <meta name="description" content="万能视频下载器，支持 YouTube、Bilibili、抖音、TikTok、X 等上千平台，提供视频解析、高清下载、音频提取、字幕下载与 AI 视频总结。" />
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <!-- markmap: 将 Markdown 大纲渲染为思维导图，供 AI 总结使用。 -->
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.18"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.18/dist/browser/index.iife.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                200: '#bfdbfe',
+                400: '#60a5fa',
+                500: '#1777FF',
+                600: '#0b62e6',
+                700: '#0a52c0',
+              },
+              ink: '#0F172A',
+              violet: '#7c5cff',
+            },
+            fontFamily: {
+              sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans SC', 'sans-serif'],
+            },
+            boxShadow: {
+              card: '0 4px 24px -4px rgba(15, 23, 42, 0.08)',
+              glow: '0 10px 40px -10px rgba(23, 119, 255, 0.45)',
+            },
+            keyframes: {
+              floaty: { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-8px)' } },
+              shimmer: { '100%': { transform: 'translateX(100%)' } },
+            },
+            animation: {
+              floaty: 'floaty 6s ease-in-out infinite',
+            },
+          },
+        },
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
