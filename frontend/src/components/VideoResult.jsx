@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { startDownload, getProgress, fileUrl } from '../api'
 import { Icon } from './icons'
+import { TAG_TONE_CLASS, buildVideoInfoTags, formatDuration, qualityButtonMeta } from '../videoInfo'
 
 const PRESETS = [
   { key: 'best', label: '最佳画质', height: 99999 },
@@ -9,15 +10,6 @@ const PRESETS = [
   { key: '480p', label: '480P', height: 480 },
   { key: '360p', label: '360P', height: 360 },
 ]
-
-function fmtDuration(sec) {
-  if (!sec) return null
-  const s = Math.floor(sec % 60)
-  const m = Math.floor((sec / 60) % 60)
-  const h = Math.floor(sec / 3600)
-  const pad = (n) => String(n).padStart(2, '0')
-  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
-}
 
 export default function VideoResult({ info, url }) {
   const [quality, setQuality] = useState('best')
@@ -30,6 +22,8 @@ export default function VideoResult({ info, url }) {
   const maxHeight = info.qualities?.[0]?.height || 99999
   const presets = PRESETS.filter((p) => p.key === 'best' || p.height <= maxHeight)
   const busy = task && ['queued', 'downloading', 'processing'].includes(task.status)
+  const infoTags = buildVideoInfoTags(info)
+  const duration = info.duration_string || formatDuration(info.duration)
 
   useEffect(() => () => clearInterval(pollRef.current), [])
 
@@ -92,37 +86,50 @@ export default function VideoResult({ info, url }) {
               <Icon.Download className="h-10 w-10" />
             </div>
           )}
-          {fmtDuration(info.duration) && (
+          {duration && (
             <span className="absolute bottom-2 right-2 rounded bg-black/70 px-2 py-1 text-xs font-semibold text-white">
-              {fmtDuration(info.duration)}
+              {duration}
             </span>
           )}
         </div>
 
         <h3 className="mt-4 line-clamp-3 text-left text-lg font-extrabold leading-snug text-ink">{info.title}</h3>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          {info.uploader && <span className="max-w-full truncate">作者 {info.uploader}</span>}
-          {info.extractor && <span className="rounded-full bg-brand-50 px-2 py-0.5 font-semibold text-brand-600">{info.extractor}</span>}
-          {info.qualities?.length > 0 && <span>最高 {info.qualities[0].label}</span>}
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+          {infoTags.map((tag) => (
+            <span
+              key={tag.text}
+              className={`min-w-0 truncate rounded-xl border px-2.5 py-1.5 font-bold ${TAG_TONE_CLASS[tag.tone] || TAG_TONE_CLASS.slate}`}
+              title={tag.text}
+            >
+              {tag.text}
+            </span>
+          ))}
         </div>
 
         <div className="mt-5">
           <div className="mb-2 text-left text-xs font-semibold text-slate-400">选择清晰度</div>
           <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
-            {presets.map((p) => (
-              <button
-                key={p.key}
-                disabled={audioOnly || busy}
-                onClick={() => setQuality(p.key)}
-                className={`rounded-xl border px-3 py-2 text-sm font-semibold transition disabled:opacity-40 ${
-                  quality === p.key && !audioOnly
-                    ? 'border-brand-500 bg-brand-500 text-white shadow-glow'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-brand-300'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
+            {presets.map((p) => {
+              const meta = qualityButtonMeta(p, info.qualities || [])
+              const selected = quality === p.key && !audioOnly
+              return (
+                <button
+                  key={p.key}
+                  disabled={audioOnly || busy}
+                  onClick={() => setQuality(p.key)}
+                  className={`min-h-[4.25rem] rounded-xl border px-3 py-2 text-left transition disabled:opacity-40 ${
+                    selected
+                      ? 'border-brand-500 bg-brand-500 text-white shadow-glow'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-brand-300'
+                  }`}
+                >
+                  <span className="block text-sm font-black leading-tight">{meta.label}</span>
+                  <span className={`mt-1 block text-[11px] font-semibold leading-tight ${selected ? 'text-white/80' : 'text-slate-400'}`}>
+                    {meta.detail}
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </div>
 
