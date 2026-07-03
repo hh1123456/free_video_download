@@ -354,3 +354,58 @@ cd backend
 cd ..\frontend
 npm run build
 ```
+
+## 2026-07-04 AI 总结体验与解析结果增强
+
+### 1. AI 总结深度与表达升级
+
+- 后端总结提示词增强，要求模型输出更有洞察的内容：不仅复述视频，还要提炼核心观点、潜在逻辑、情绪走向、反常识信息和可行动启发。
+- 输出风格从"规矩摘要"调整为更像内容编辑的分析：保留结构化字段，同时鼓励适度使用重点标记、短句节奏和更有趣的表达。
+- 仍沿用原有 JSON 结构，避免破坏前端 `AiSummary.jsx` 的展示、翻译、导出和问答链路。
+- 主要文件：`backend/app/ai.py`。
+
+### 2. 重点标记与流式展示修复
+
+- 前端新增安全的行内 Markdown 渲染，只支持有限的 `**重点**` 标记，并先转义 HTML，避免把模型输出直接当作不可信 HTML 注入。
+- 修复 AI 总结"文档加载完后瞬间全部出现"的问题：动画 key 从只依赖 `task.id` 改为内容感知，保证同一个任务在获得更丰富总结内容时仍会重新触发逐字/流式展示动画。
+- 主要文件：
+  - `frontend/src/inlineMarkdown.js`
+  - `frontend/src/summaryAnimation.js`
+  - `frontend/src/components/AiSummary.jsx`
+
+### 3. 解析视频进度条
+
+- 解析阶段新增前端进度面板，在还没有生成视频内容前显示在内容区域中间，避免用户点击解析后长时间无反馈。
+- 由于 `/api/parse` 当前是同步接口，进度条采用前端阶段式模拟：提交链接、连接平台、读取媒体信息、整理清晰度与字幕、生成结果。
+- 进度会在请求未完成时缓慢推进并封顶，接口返回后再进入完成态；这样不改后端协议，也能给用户稳定的等待反馈。
+- 主要文件：
+  - `frontend/src/parseProgress.js`
+  - `frontend/src/components/Downloader.jsx`
+
+### 4. 视频信息卡与下载大小展示
+
+- 解析完成后的左侧视频卡片补充更多信息：平台、时长、作者、播放量、视频 ID、字幕语言、清晰度数量等，并用不同颜色标签区分信息类型。
+- 清晰度/下载按钮增加文件大小提示：能从解析结果拿到 `filesize` 时展示约 `128 MB` 这类大小；缺失时显示"大小未知"。
+- `最佳画质` 会从可用清晰度中选取最高项并展示对应最高分辨率与大小，具体清晰度按钮展示自己的大小。
+- 主要文件：
+  - `frontend/src/videoInfo.js`
+  - `frontend/src/components/VideoResult.jsx`
+
+### 5. 部署更新路径确认
+
+- 当前更新分支为 `codex/deep-ai-summary`，最新功能提交为 `e43707b feat: enrich video info card`。
+- 服务器若原来连接码云，可额外添加 GitHub 远端，例如 `github`，再拉取 `github/codex/deep-ai-summary` 分支。
+- Docker 部署更新流程已验证：拉取最新代码后执行 `docker compose up -d --build`，再用 `/api/health` 检查服务状态。
+
+### 6. 验证
+
+```powershell
+cd frontend
+node --test src/videoInfo.test.js src/parseProgress.test.js src/inlineMarkdown.test.js src/summaryAnimation.test.js
+npm run build
+```
+
+验证结果：
+
+- 前端相关单元测试：11/11 通过。
+- Vite 生产构建通过。
