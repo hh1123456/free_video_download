@@ -330,5 +330,28 @@ class FetchTranscriptTests(unittest.TestCase):
         ai.ai_manager._tasks.pop(task_id, None)
 
 
+class SummaryPromptContractTests(unittest.TestCase):
+    def test_detail_prompt_requests_deep_interesting_emphasized_output(self) -> None:
+        prompt = ai._DETAIL_SUMMARY_SYSTEM
+
+        self.assertIn("深度", prompt)
+        self.assertIn("有趣", prompt)
+        self.assertIn("**", prompt)
+        self.assertIn("💡洞察", prompt)
+        self.assertIn("🎯重点", prompt)
+        self.assertIn("⚠️边界", prompt)
+        self.assertIn("不准编造", prompt)
+        self.assertIn("从字幕看", prompt)
+
+    def test_single_pass_prompt_matches_deep_summary_contract(self) -> None:
+        prompt = ai._SUMMARY_SYSTEM
+
+        self.assertIn("深度", prompt)
+        self.assertIn("隐藏逻辑", prompt)
+        self.assertIn("反直觉", prompt)
+        self.assertIn("**", prompt)
+        self.assertIn("mindmap_markdown", prompt)
+
+
 if __name__ == "__main__":
     unittest.main()

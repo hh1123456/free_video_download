@@ -1,6 +1,7 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { startAiSummary, getAiSummary, aiChat, aiTranslate, transcriptDownloadUrl } from '../api'
 import { Icon } from './icons'
+import { escapeHtml, inlineMarkdown } from '../inlineMarkdown'
 
 const TABS = [
   { key: 'markdown', label: '总结摘要', icon: '📝' },
@@ -566,11 +567,12 @@ function StreamingDigest({ partial }) {
 
 function SummaryDigest({ view, title }) {
   const outline = normalizeReadableOutline(view)
+  const overview = view.overview || `${title || '该视频'} 的概要内容正在生成中。`
   return (
     <article className="summary-readable w-full">
       <section>
         <h2>视频概述</h2>
-        <p>{view.overview || `${title || '该视频'} 的概要内容正在生成中。`}</p>
+        <p><InlineRichText text={overview} /></p>
       </section>
 
       <section className="mt-8">
@@ -580,12 +582,12 @@ function SummaryDigest({ view, title }) {
             <div key={`${item.title}-${index}`} className="summary-outline-item">
               <div className="summary-outline-title">
                 <span>{index + 1}.</span>
-                <strong>{item.title}</strong>
+                <strong><InlineRichText text={item.title} /></strong>
               </div>
               {item.points.length > 0 && (
                 <ul>
                   {item.points.map((point, pointIndex) => (
-                    <li key={pointIndex}>{point}</li>
+                    <li key={pointIndex}><InlineRichText text={point} /></li>
                   ))}
                 </ul>
               )}
@@ -595,6 +597,10 @@ function SummaryDigest({ view, title }) {
       </section>
     </article>
   )
+}
+
+function InlineRichText({ text }) {
+  return <span dangerouslySetInnerHTML={{ __html: inlineMarkdown(text) }} />
 }
 
 function normalizeReadableOutline(view) {
@@ -643,16 +649,6 @@ function segmentsToSrt(segments) {
     })
     .filter(Boolean)
     .join('\n')
-}
-
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
-}
-
-function inlineMarkdown(s) {
-  return escapeHtml(s)
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
 }
 
 function markdownToHtml(md) {
