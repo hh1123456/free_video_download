@@ -2,6 +2,7 @@
 import { startAiSummary, getAiSummary, aiChat, aiTranslate, transcriptDownloadUrl } from '../api'
 import { Icon } from './icons'
 import { escapeHtml, inlineMarkdown } from '../inlineMarkdown'
+import { summaryAnimationKey } from '../summaryAnimation'
 
 const TABS = [
   { key: 'markdown', label: '总结摘要', icon: '📝' },
@@ -75,6 +76,7 @@ export default function AiSummary({ url, autoStart = false }) {
   const loading = task && ['queued', 'fetching', 'summarizing'].includes(task.status)
   const enriching = task?.status === 'enriching'
   const markdown = view ? buildMarkdown(view, task?.title) : ''
+  const currentSummaryAnimationKey = view ? summaryAnimationKey({ task, view, url }) : ''
 
   async function handleStart() {
     setOpen(true)
@@ -136,12 +138,11 @@ export default function AiSummary({ url, autoStart = false }) {
     }
 
     const outline = normalizeReadableOutline(view)
-    const taskKey = task?.id || task?.url || url || 'summary'
-    if (animatedTaskRef.current === taskKey) {
+    const animationKey = currentSummaryAnimationKey
+    if (animatedTaskRef.current === animationKey) {
       setTypedView(view)
       return
     }
-    animatedTaskRef.current = taskKey
 
     const nextView = {
       ...view,
@@ -180,10 +181,14 @@ export default function AiSummary({ url, autoStart = false }) {
         })
         .filter(Boolean)
       setTypedView({ ...view, overview, outline: nextOutline })
-      if (cursor >= units.length) clearInterval(timer)
+      if (cursor >= units.length) {
+        clearInterval(timer)
+        animatedTaskRef.current = animationKey
+        setTypedView(view)
+      }
     }, 45)
     return () => clearInterval(timer)
-  }, [view, tab])
+  }, [currentSummaryAnimationKey, tab])
 
   async function handleTranslate(code) {
     setLang(code)
