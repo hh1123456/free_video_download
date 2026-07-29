@@ -8,3 +8,4 @@ python-multipart==0.0.20
 openai>=1.40.0
 # 语音转写 ASR：无字幕视频的兜底（首次使用会自动下载模型权重）
 faster-whisper>=1.0.0
+opencc-python-reimplemented>=0.1.7

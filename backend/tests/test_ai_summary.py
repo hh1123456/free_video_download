@@ -66,6 +66,37 @@ class FetchTranscriptTests(unittest.TestCase):
         self.assertEqual(result["lang"], "zh")
         self.assertEqual(result["segments"], segments)
 
+    def test_fetch_transcript_normalizes_douyin_modal_url(self) -> None:
+        fake_info = {
+            "title": "demo",
+            "duration": 10,
+            "webpage_url": "https://www.douyin.com/video/7667735259081506659",
+            "thumbnail": None,
+            "extractor_key": "Douyin",
+            "subtitles": {"zh": {}},
+            "automatic_captions": {},
+        }
+        segments = [{"start": 1, "start_str": "0:01", "text": "字幕内容"}]
+        url = (
+            "https://www.douyin.com/user/self?from_tab_name=main"
+            "&modal_id=7667735259081506659&showTab=favorite_collection"
+        )
+
+        with patch.object(ai, "_base_opts", return_value={}) as base_opts, \
+             patch.object(ai.yt_dlp, "YoutubeDL") as youtube_dl, \
+             patch.object(ai, "_download_and_parse_subtitle", return_value=segments):
+            youtube_dl.return_value.__enter__.return_value.extract_info.return_value = fake_info
+
+            result = ai.fetch_transcript(url)
+
+        canonical_url = "https://www.douyin.com/video/7667735259081506659"
+        base_opts.assert_called_once_with(canonical_url)
+        youtube_dl.return_value.__enter__.return_value.extract_info.assert_called_once_with(
+            canonical_url,
+            download=False,
+        )
+        self.assertEqual(result["segments"], segments)
+
     def test_asr_hub_download_error_is_translated_to_actionable_message(self) -> None:
         fake_info = {
             "title": "demo",
@@ -125,6 +156,16 @@ class FetchTranscriptTests(unittest.TestCase):
             "00:00:04,000 --> 00:00:07,000\n"
             "第二句 换行\n",
         )
+
+    def test_segments_to_srt_converts_traditional_chinese_to_simplified(self) -> None:
+        segments = [{"start": 1, "text": "繁體字幕，下載後可以閱讀。"}]
+
+        self.assertIn("繁体字幕，下载后可以阅读。", ai.segments_to_srt(segments))
+
+    def test_segments_to_text_converts_traditional_chinese_to_simplified(self) -> None:
+        segments = [{"start_str": "0:01", "text": "繁體字幕，下載後可以閱讀。"}]
+
+        self.assertEqual(ai._segments_to_text(segments), "[0:01] 繁体字幕，下载后可以阅读。")
 
     def test_summary_manager_returns_srt_for_completed_task(self) -> None:
         manager = ai.AISummaryManager()

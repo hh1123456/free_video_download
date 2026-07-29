@@ -11,7 +11,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import yt_dlp
 
@@ -102,10 +102,21 @@ def _base_opts(url: Optional[str] = None) -> Dict[str, Any]:
     if FFMPEG_DIR:
         opts["ffmpeg_location"] = FFMPEG_DIR
     opts["http_headers"] = headers
-    cookies = get_cookies_file()
+    cookies = get_cookies_file(url)
     if cookies:
         opts["cookiefile"] = cookies
     return opts
+
+
+def normalize_video_url(url: str) -> str:
+    """Convert supported page-state URLs to canonical video URLs."""
+    cleaned = (url or "").strip()
+    parsed = urlparse(cleaned)
+    if "douyin.com" in parsed.netloc.lower():
+        modal_id = (parse_qs(parsed.query).get("modal_id") or [""])[0].strip()
+        if modal_id.isdigit():
+            return f"https://www.douyin.com/video/{modal_id}"
+    return cleaned
 
 
 def friendly_error(exc: Exception) -> str:
@@ -149,6 +160,7 @@ def _human_size(num: Optional[float]) -> Optional[str]:
 
 def parse_video(url: str) -> Dict[str, Any]:
     """仅解析视频信息，不下载。"""
+    url = normalize_video_url(url)
     opts = _base_opts(url)
     opts["skip_download"] = True
     with yt_dlp.YoutubeDL(opts) as ydl:
@@ -223,6 +235,7 @@ class DownloadManager:
         audio_only: bool = False,
         subtitle_lang: Optional[str] = None,
     ) -> str:
+        url = normalize_video_url(url)
         task_id = uuid.uuid4().hex
         with self._lock:
             self._tasks[task_id] = {

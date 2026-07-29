@@ -3,6 +3,11 @@ import { startAiSummary, getAiSummary, aiChat, aiTranslate, transcriptDownloadUr
 import { Icon } from './icons'
 import { escapeHtml, inlineMarkdown } from '../inlineMarkdown'
 import { summaryAnimationKey } from '../summaryAnimation'
+import {
+  aiSummaryCache,
+  shouldAnimateSummaryView,
+  shouldResumeSummaryTask,
+} from '../aiSummaryState'
 
 const TABS = [
   { key: 'markdown', label: '总结摘要', icon: '📝' },
@@ -55,11 +60,37 @@ export default function AiSummary({ url, autoStart = false }) {
   const mapRef = useRef(null)
   const mmRef = useRef(null)
   const animatedTaskRef = useRef('')
+  const viewRef = useRef(null)
+  const originRef = useRef(null)
+  const openRef = useRef(false)
 
   useEffect(() => () => clearInterval(pollRef.current), [])
 
   useEffect(() => {
+    viewRef.current = view
+  }, [view])
+
+  useEffect(() => {
+    originRef.current = origin
+  }, [origin])
+
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
+
+  useEffect(() => {
     if (!autoStart || open || task) return
+    const cached = aiSummaryCache.restore(url)
+    if (cached?.task) {
+      setOpen(Boolean(cached.open))
+      setTask(cached.task)
+      setOrigin(cached.origin || null)
+      setView(cached.view || cached.origin || null)
+      if (shouldResumeSummaryTask(cached.task)) {
+        startPolling(cached.task.id)
+      }
+      return
+    }
     handleStart()
   }, [autoStart, open, task])
 
@@ -85,29 +116,49 @@ export default function AiSummary({ url, autoStart = false }) {
     try {
       const { task_id } = await startAiSummary(url)
       animatedTaskRef.current = ''
-      clearInterval(pollRef.current)
-      pollRef.current = setInterval(async () => {
-        try {
-          const t = await getAiSummary(task_id)
-          setTask(t)
-          if (t.status === 'enriching' && t.result) {
-            setOrigin(t.result)
-            setView(t.result)
-          } else if (t.status === 'completed') {
-            clearInterval(pollRef.current)
-            setOrigin(t.result)
-            setView(t.result)
-          } else if (t.status === 'error') {
-            clearInterval(pollRef.current)
-          }
-        } catch (e) {
-          clearInterval(pollRef.current)
-          setTask({ status: 'error', error: e.message })
-        }
-      }, 500)
+      startPolling(task_id)
     } catch (e) {
       setTask({ status: 'error', error: e.message })
     }
+  }
+
+  function applySummaryTask(t) {
+    setTask(t)
+    const nextOrigin = t.result || originRef.current
+    const nextView = t.result || viewRef.current
+    if (t.result) {
+      setOrigin(t.result)
+      setView(t.result)
+    }
+    aiSummaryCache.save(url, {
+      open: openRef.current || true,
+      task: t,
+      origin: nextOrigin,
+      view: nextView,
+    })
+  }
+
+  function startPolling(taskId) {
+    clearInterval(pollRef.current)
+    pollRef.current = setInterval(async () => {
+      try {
+        const t = await getAiSummary(taskId)
+        applySummaryTask(t)
+        if (t.status === 'completed' || t.status === 'error') {
+          clearInterval(pollRef.current)
+        }
+      } catch (e) {
+        clearInterval(pollRef.current)
+        const errorTask = { status: 'error', error: e.message }
+        setTask(errorTask)
+        aiSummaryCache.save(url, {
+          open: true,
+          task: errorTask,
+          origin: originRef.current,
+          view: viewRef.current,
+        })
+      }
+    }, 500)
   }
 
   useEffect(() => {
@@ -133,6 +184,10 @@ export default function AiSummary({ url, autoStart = false }) {
       return
     }
     if (tab !== 'markdown') {
+      setTypedView(view)
+      return
+    }
+    if (!shouldAnimateSummaryView({ task, tab })) {
       setTypedView(view)
       return
     }
@@ -188,7 +243,7 @@ export default function AiSummary({ url, autoStart = false }) {
       }
     }, 45)
     return () => clearInterval(timer)
-  }, [currentSummaryAnimationKey, tab])
+  }, [currentSummaryAnimationKey, tab, task?.status])
 
   async function handleTranslate(code) {
     setLang(code)

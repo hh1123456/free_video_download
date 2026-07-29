@@ -17,8 +17,9 @@ from urllib.request import HTTPCookieProcessor, build_opener
 import yt_dlp
 
 from . import config
+from .chinese import to_simplified_chinese
 from .config import get_cookies_file
-from .downloader import _USER_AGENT, _base_opts, friendly_error
+from .downloader import _USER_AGENT, _base_opts, friendly_error, normalize_video_url
 
 # ---------------------------------------------------------------------------
 # 涓€銆佸瓧骞曟姄鍙栦笌瑙ｆ瀽
@@ -59,6 +60,7 @@ def segments_to_srt(segments: List[Dict[str, Any]]) -> str:
     cues: List[str] = []
     for idx, seg in enumerate(segments or [], start=1):
         text = re.sub(r"\s+", " ", str(seg.get("text") or "")).strip()
+        text = to_simplified_chinese(text)
         if not text:
             continue
         start = int(seg.get("start") or 0)
@@ -143,6 +145,8 @@ def _parse_vtt(text: str) -> List[Dict[str, Any]]:
 
 def fetch_transcript(url: str, on_stage=None) -> Dict[str, Any]:
     """Fetch transcript text, preferring subtitles and falling back to ASR."""
+    url = normalize_video_url(url)
+
     def stage(msg: str) -> None:
         if on_stage:
             on_stage(msg)
@@ -204,7 +208,7 @@ def fetch_transcript(url: str, on_stage=None) -> Dict[str, Any]:
     # 璧板埌杩欓噷璇存槑鏃㈡棤瀛楀箷涔熸棤娉?ASR
     extractor = (info.get("extractor_key") or info.get("extractor") or "").lower()
     if not config.ENABLE_ASR:
-        if "bili" in extractor and not get_cookies_file():
+        if "bili" in extractor and not get_cookies_file(url):
             raise ValueError(
                 "未获取到该 B 站视频的可用字幕。B 站 CC/AI 字幕可能需要登录 Cookie："
                 "可把 cookies.txt 放到 backend/cookies.txt；或开启语音转写（ENABLE_ASR=1）后重试。"
@@ -256,8 +260,8 @@ def _parse_bilibili_json_subtitle(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     return segments
 
 
-def _bilibili_opener():
-    cookies = get_cookies_file()
+def _bilibili_opener(url: str = "https://www.bilibili.com/"):
+    cookies = get_cookies_file(url)
     if not cookies:
         return urllib.request.build_opener()
     jar = MozillaCookieJar()
@@ -273,7 +277,7 @@ def _bilibili_get_json(url: str, referer: str) -> Dict[str, Any]:
         "Origin": "https://www.bilibili.com",
     }
     req = urllib.request.Request(url, headers=headers)
-    with _bilibili_opener().open(req, timeout=20) as resp:
+    with _bilibili_opener(referer).open(req, timeout=20) as resp:
         return json.load(resp)
 
 
@@ -396,7 +400,7 @@ def _friendly_asr_error(exc: Exception, info: Dict[str, Any]) -> ValueError:
     extractor = (info.get("extractor_key") or info.get("extractor") or "").lower()
 
     if any(token in low for token in ("hugging face", "huggingface", "local cache", "on the hub", "hf_hub")):
-        if "bili" in extractor and not get_cookies_file():
+        if "bili" in extractor and not get_cookies_file("https://www.bilibili.com/"):
             return ValueError(
                 "未获取到该 B 站视频的可用字幕；同时语音转写需要先下载 Whisper 模型，"
                 "但当前无法从 Hugging Face 拉取模型文件。可先放置 cookies.txt 读取字幕，"
@@ -414,7 +418,7 @@ def _friendly_asr_error(exc: Exception, info: Dict[str, Any]) -> ValueError:
 
 def _segments_to_text(segments: List[Dict[str, Any]], max_chars: int = 30000) -> str:
     """Join timestamped transcript segments for LLM input."""
-    lines = [f"[{s['start_str']}] {s['text']}" for s in segments]
+    lines = [f"[{s['start_str']}] {to_simplified_chinese(str(s.get('text') or ''))}" for s in segments]
     full = "\n".join(lines)
     if len(full) <= max_chars:
         return full

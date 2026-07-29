@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 # 项目根目录（backend 的上一级）
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -46,10 +47,23 @@ TASK_TTL_SECONDS = int(os.getenv("TASK_TTL_SECONDS", "3600"))
 # 可选的 Cookie 文件（Netscape 格式）。某些平台（如 B站 720p/1080p、会员视频、
 # 受限内容）需要登录态才能获取更高清晰度。把浏览器导出的 cookies.txt 放到
 # backend/cookies.txt，或用环境变量 COOKIES_FILE 指定路径即可自动启用。
-def get_cookies_file() -> str | None:
+def get_cookies_file(url: str | None = None) -> str | None:
     env_path = os.getenv("COOKIES_FILE")
     if env_path and Path(env_path).exists():
         return env_path
+    host = urlparse(url or "").netloc.lower()
+    platform_files = {
+        "douyin": BASE_DIR / "backend" / "cookies" / "douyin.txt",
+        "bilibili": BASE_DIR / "backend" / "cookies" / "bilibili.txt",
+    }
+    if any(domain in host for domain in ("douyin.com", "iesdouyin.com")):
+        path = platform_files["douyin"]
+        if path.exists():
+            return str(path)
+    if any(domain in host for domain in ("bilibili.com", "b23.tv")):
+        path = platform_files["bilibili"]
+        if path.exists():
+            return str(path)
     default = BASE_DIR / "backend" / "cookies.txt"
     return str(default) if default.exists() else None
 
